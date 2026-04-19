@@ -1,0 +1,6 @@
+{
+  "name": "Blobify",
+  "description": "An interactive tool that generates animated, data-driven blob shapes with blending, individual controls, and pure snippet code export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
