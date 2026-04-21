@@ -214,19 +214,19 @@ export function ColorPicker({ color, onChange }: ColorPickerProps) {
 
   return (
     <div className="relative flex flex-col items-center w-full" ref={containerRef}>
-      <div className="flex flex-col gap-1 w-full relative">
+      <div className="flex flex-col w-full relative group">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="w-full h-10 border border-[#333] cursor-pointer"
+          className="w-full h-10 border border-[#444] rounded-t-md cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98] shadow-inner"
           style={{ backgroundColor: color }}
         />
-        <div className="flex w-full items-center">
-            <span className="w-6 text-[10px] text-accent font-mono text-center">#</span>
+        <div className="flex w-full items-center bg-[#1a1a1a] border border-t-0 border-[#444] rounded-b-md px-2 py-1.5 focus-within:border-accent focus-within:bg-[#222] transition-colors">
+            <span className="text-[10px] text-accent font-mono mr-1 font-bold">#</span>
             <input type="text" value={hexInput}
                onChange={handleHexChange}
                maxLength={6}
                spellCheck="false"
-               className="w-full relative -left-1 bg-[#111] border border-[#333] text-left text-[10px] text-white/70 p-1.5 font-mono uppercase focus:border-accent focus:text-accent outline-none transition-colors rounded-sm" />
+               className="w-full bg-transparent text-left text-[11px] text-white/90 font-mono uppercase focus:outline-none transition-colors" />
         </div>
       </div>
 

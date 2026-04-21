@@ -16,15 +16,31 @@ export default function App() {
     speed: 1.0,
     tension: 0.7,
     showPoints: false,
+    dimension: '3d',
+    config3D: {
+      animationSpeed: 1.0,
+      wobbleIntensity: 0.5,
+      complexity: 1.2,
+      wireframe: false,
+      color: '#8b5cf6',
+      baseRadius: 2,
+      shininess: 100,
+      quality: 3,
+      colorMode: 'solid',
+      customColors: ['#FF0080', '#00DFD8'],
+      autoAnimateColors: false,
+      autoColors: ['#FF00A0', '#00DFD8'],
+      colorSpeed: 1.0
+    }
   });
 
   const [layers, setLayers] = useState<Layer[]>([
     {
       id: 'layer-1',
       data: [60, 40, 80, 50, 90, 70],
-      staticColors: ['#FF0080', '#7928CA'],
+      staticColors: ['#FF0080', '#00DFD8'],
       autoAnimateColors: false,
-      autoColors: ['#FF0080', '#00DFD8', '#7928CA'],
+      autoColors: ['#FF0080', '#00DFD8'],
       colorSpeed: 1.0,
       opacity: 0.8,
       blur: 20,

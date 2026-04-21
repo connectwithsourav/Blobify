@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { GlobalConfig, Layer } from '../types';
+import { Blob3D } from './Blob3D';
 
 interface PreviewProps {
   config: GlobalConfig;
@@ -45,8 +46,11 @@ export function Preview({ config, layers }: PreviewProps) {
         if (layer.autoAnimateColors) {
           const timeScaled = time * 0.001 * layer.colorSpeed;
           const phase = timeScaled % 1;
-          const c1 = d3.interpolateRgbBasis([layer.autoColors[0], layer.autoColors[1], layer.autoColors[2], layer.autoColors[0]])(phase);
-          const c2 = d3.interpolateRgbBasis([layer.autoColors[1], layer.autoColors[2], layer.autoColors[0], layer.autoColors[1]])(phase);
+          const paddedColors1 = [...layer.autoColors, layer.autoColors[0]];
+          const paddedColors2 = [...layer.autoColors.slice(1), layer.autoColors[0], layer.autoColors[1] || layer.autoColors[0]];
+          
+          const c1 = d3.interpolateRgbBasis(paddedColors1)(phase);
+          const c2 = d3.interpolateRgbBasis(paddedColors2)(phase);
 
           const stop1 = document.getElementById(`live-stop-0-${layer.id}`);
           const stop2 = document.getElementById(`live-stop-1-${layer.id}`);
@@ -108,45 +112,49 @@ export function Preview({ config, layers }: PreviewProps) {
       <div className="relative w-full h-full flex items-center justify-center z-0 p-4 sm:p-8 md:p-12">
         <div className="absolute top-1/2 left-1/2 w-1 h-1 bg-accent rounded-full -translate-x-1/2 -translate-y-1/2 z-0" />
         
-        <svg className="w-full h-full max-w-[900px] max-h-[900px] drop-shadow-2xl overflow-visible relative z-10" viewBox="-350 -350 700 700">
-          <defs>
-            {layers.map(layer => (
-              <linearGradient key={`grad-${layer.id}`} id={`live-grad-${layer.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" id={`live-stop-0-${layer.id}`} stopColor={layer.staticColors[0]} />
-                <stop offset="100%" id={`live-stop-1-${layer.id}`} stopColor={layer.staticColors[1]} />
-              </linearGradient>
-            ))}
-          </defs>
-          
-          <g>
-            {layers.map((layer) => (
-              <g key={layer.id}>
-                {/* Layer Shape Path */}
-                <path
-                  id={`live-blob-path-${layer.id}`}
-                  fill={`url(#live-grad-${layer.id})`}
-                  style={{
-                    mixBlendMode: 'screen',
-                    opacity: layer.opacity,
-                    filter: layer.blur > 0 ? `blur(${layer.blur}px)` : 'none'
-                  }}
-                />
-                
-                {/* Layer Data Points Visualization */}
-                {config.showPoints && (
-                  <g id={`live-points-${layer.id}`}>
-                    {layer.data.map((_, i) => (
-                      <g key={i} id={`live-point-group-${layer.id}-${i}`}>
-                        <line stroke="rgba(255,255,255,0.1)" strokeDasharray="4 4" x1={0} y1={0} />
-                        <circle r={4} fill="#fff" opacity={0.5} />
-                      </g>
-                    ))}
-                  </g>
-                )}
-              </g>
-            ))}
-          </g>
-        </svg>
+        {config.dimension === '3d' ? (
+          <Blob3D config={config} layers={layers} />
+        ) : (
+          <svg className="w-full h-full max-w-[900px] max-h-[900px] drop-shadow-2xl overflow-visible relative z-10" viewBox="-350 -350 700 700">
+            <defs>
+              {layers.map(layer => (
+                <linearGradient key={`grad-${layer.id}`} id={`live-grad-${layer.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" id={`live-stop-0-${layer.id}`} stopColor={layer.staticColors[0]} />
+                  <stop offset="100%" id={`live-stop-1-${layer.id}`} stopColor={layer.staticColors[1]} />
+                </linearGradient>
+              ))}
+            </defs>
+            
+            <g>
+              {layers.map((layer) => (
+                <g key={layer.id}>
+                  {/* Layer Shape Path */}
+                  <path
+                    id={`live-blob-path-${layer.id}`}
+                    fill={`url(#live-grad-${layer.id})`}
+                    style={{
+                      mixBlendMode: 'screen',
+                      opacity: layer.opacity,
+                      filter: layer.blur > 0 ? `blur(${layer.blur}px)` : 'none'
+                    }}
+                  />
+                  
+                  {/* Layer Data Points Visualization */}
+                  {config.showPoints && (
+                    <g id={`live-points-${layer.id}`}>
+                      {layer.data.map((_, i) => (
+                        <g key={i} id={`live-point-group-${layer.id}-${i}`}>
+                          <line stroke="rgba(255,255,255,0.1)" strokeDasharray="4 4" x1={0} y1={0} />
+                          <circle r={4} fill="#fff" opacity={0.5} />
+                        </g>
+                      ))}
+                    </g>
+                  )}
+                </g>
+              ))}
+            </g>
+          </svg>
+        )}
       </div>
     </div>
   );
