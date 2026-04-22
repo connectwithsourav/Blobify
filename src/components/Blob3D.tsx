@@ -1,7 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { createNoise3D } from 'simplex-noise';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 import { GlobalConfig, Layer } from '../types';
 
 interface Blob3DProps {
@@ -56,6 +59,20 @@ export function Blob3D({ config, layers }: Blob3DProps) {
     controls.maxDistance = 15;
     controlsRef.current = controls;
 
+    const composer = new EffectComposer(renderer);
+    const renderPass = new RenderPass(scene, camera);
+    composer.addPass(renderPass);
+
+    const ssaoPass = new SSAOPass(scene, camera, container.clientWidth, container.clientHeight);
+    const isMobile = window.innerWidth <= 768;
+    ssaoPass.kernelRadius = isMobile ? 8 : 16;
+    ssaoPass.minDistance = 0.005;
+    ssaoPass.maxDistance = 0.1;
+    composer.addPass(ssaoPass);
+
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(container.clientWidth, container.clientHeight), 0.3, 0.5, 0.6);
+    composer.addPass(bloomPass);
+
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     scene.add(ambientLight);
 
@@ -71,13 +88,13 @@ export function Blob3D({ config, layers }: Blob3DProps) {
 
     let currentQuality = configRef.current.config3D?.quality ?? 3;
     
-    const getSegments = (quality: number) => {
+    const getDetail = (quality: number) => {
       switch(quality) {
-        case 1: return 32;
-        case 2: return 64;
-        case 3: return 128;
-        case 4: return 256;
-        default: return 128;
+        case 1: return 16;
+        case 2: return 32;
+        case 3: return 64;
+        case 4: return 128;
+        default: return 64;
       }
     };
 
@@ -93,13 +110,16 @@ export function Blob3D({ config, layers }: Blob3DProps) {
     updateShadowRes(currentQuality);
 
     let baseRadius = configRef.current.config3D?.baseRadius ?? 2;
-    let geometry = new THREE.SphereGeometry(baseRadius, getSegments(currentQuality), getSegments(currentQuality));
-    let basePositions = geometry.attributes.position.clone();
+    let geometry = new THREE.IcosahedronGeometry(baseRadius, getDetail(currentQuality));
 
     const customUniforms = {
       color1: { value: new THREE.Color() },
       color2: { value: new THREE.Color() },
-      useGradient: { value: false }
+      useGradient: { value: false },
+      uTime: { value: 0 },
+      uComplexity: { value: 1.2 },
+      uWobble: { value: 0.5 },
+      uRadius: { value: 2.0 }
     };
 
     const materialColor = configRef.current.config3D?.color || '#8b5cf6';
@@ -110,13 +130,38 @@ export function Blob3D({ config, layers }: Blob3DProps) {
       flatShading: false
     });
     
-    material.onBeforeCompile = (shader) => {
+    const applyBlobShader = (shader: THREE.Shader) => {
       shader.uniforms.color1 = customUniforms.color1;
       shader.uniforms.color2 = customUniforms.color2;
       shader.uniforms.useGradient = customUniforms.useGradient;
+      shader.uniforms.uTime = customUniforms.uTime;
+      shader.uniforms.uComplexity = customUniforms.uComplexity;
+      shader.uniforms.uWobble = customUniforms.uWobble;
+      shader.uniforms.uRadius = customUniforms.uRadius;
       
       shader.vertexShader = `
-        varying vec2 vUvBlob;
+         varying vec2 vUvBlob;
+        uniform float uTime;
+        uniform float uComplexity;
+        uniform float uWobble;
+        uniform float uRadius;
+
+        float pseudoNoise3D(vec3 p) {
+            float x = p.x;
+            float y = p.y;
+            float z = p.z;
+            return (
+                sin(x) + sin(y) + sin(z) +
+                sin(x * 2.3 + y * 1.7 + z * 0.5) +
+                sin(y * 2.3 + z * 1.7 + x * 0.5) +
+                sin(z * 2.3 + x * 1.7 + y * 0.5)
+            ) / 6.0;
+        }
+
+        vec3 getDisplacedPosition(vec3 p) {
+            float noise = pseudoNoise3D(p * uComplexity + vec3(uTime));
+            return normalize(p) * (uRadius + (noise * uWobble));
+        }
       ` + shader.vertexShader;
       
       shader.vertexShader = shader.vertexShader.replace(
@@ -124,6 +169,31 @@ export function Blob3D({ config, layers }: Blob3DProps) {
         `
         #include <uv_vertex>
         vUvBlob = uv;
+        `
+      );
+
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <beginnormal_vertex>',
+        `
+        #include <beginnormal_vertex>
+        
+        vec3 customTangent = normalize(cross(objectNormal, vec3(0.0, 1.0, 0.0)));
+        if (length(customTangent) < 0.1) {
+            customTangent = normalize(cross(objectNormal, vec3(1.0, 0.0, 0.0)));
+        }
+        vec3 customBitangent = normalize(cross(objectNormal, customTangent));
+        float offset = 0.01;
+        vec3 p0 = getDisplacedPosition(position);
+        vec3 p1 = getDisplacedPosition(position + customTangent * offset);
+        vec3 p2 = getDisplacedPosition(position + customBitangent * offset);
+        objectNormal = normalize(cross(p1 - p0, p2 - p0));
+        `
+      );
+
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `
+        vec3 transformed = getDisplacedPosition(position);
         `
       );
       
@@ -144,6 +214,8 @@ export function Blob3D({ config, layers }: Blob3DProps) {
         `
       );
     };
+
+    material.onBeforeCompile = applyBlobShader;
     
     materialRef.current = material;
 
@@ -159,11 +231,12 @@ export function Blob3D({ config, layers }: Blob3DProps) {
       opacity: 0.15,
       visible: configRef.current.config3D?.wireframe ?? false
     });
+    wireframeMaterial.onBeforeCompile = applyBlobShader;
+    
     wireframeMaterialRef.current = wireframeMaterial;
     const wireframeMesh = new THREE.Mesh(geometry, wireframeMaterial);
     scene.add(wireframeMesh);
 
-    const noise3D = createNoise3D();
     let animationFrameId: number;
 
     const animate = (time: number = 0) => {
@@ -182,16 +255,18 @@ export function Blob3D({ config, layers }: Blob3DProps) {
       if (quality !== currentQuality) {
         currentQuality = quality;
         geometry.dispose();
-        geometry = new THREE.SphereGeometry(rad, getSegments(quality), getSegments(quality));
-        basePositions = geometry.attributes.position.clone();
+        geometry = new THREE.IcosahedronGeometry(rad, getDetail(quality));
         blobMesh.geometry = geometry;
         wireframeMesh.geometry = geometry;
         updateShadowRes(quality);
       }
 
-      // Update material shine properties
-      material.roughness = Math.max(0.05, 1.0 - (shine / 300));
-      material.metalness = Math.min(1.0, shine / 600);
+      // Use "Shine Strength" purely for a smooth specular material response instead of raw bloom overload
+      material.roughness = Math.max(0.25, 1.0 - (shine / 300));
+      material.metalness = Math.min(0.5, shine / 600);
+      
+      // We will ALSO allow Shine to softly govern post-processing bloom if the user wants true glow
+      bloomPass.strength = (shine / 300) * 0.8;
 
       // Colors 
       const colorMode = currentConfig?.colorMode || 'solid';
@@ -235,43 +310,37 @@ export function Blob3D({ config, layers }: Blob3DProps) {
 
       const t = elapsedTime * 0.5 * speed;
 
-      const positionAttribute = geometry.attributes.position;
-      const vertex = new THREE.Vector3();
-
-      for (let i = 0; i < positionAttribute.count; i++) {
-        vertex.fromBufferAttribute(basePositions, i);
-        const noise = noise3D(
-          vertex.x * complexity + t,
-          vertex.y * complexity + t,
-          vertex.z * complexity + t
-        );
-        vertex.normalize().multiplyScalar(rad + (noise * intensity));
-        positionAttribute.setXYZ(i, vertex.x, vertex.y, vertex.z);
-      }
-
-      positionAttribute.needsUpdate = true;
-      geometry.computeVertexNormals();
+      customUniforms.uTime.value = t;
+      customUniforms.uComplexity.value = complexity;
+      customUniforms.uWobble.value = intensity;
+      customUniforms.uRadius.value = rad;
 
       blobMesh.rotation.y += 0.002 * speed;
       blobMesh.rotation.x += 0.001 * speed;
       wireframeMesh.rotation.copy(blobMesh.rotation);
 
       if (controlsRef.current) controlsRef.current.update();
-      renderer.render(scene, camera);
+      composer.render();
     };
 
     animate();
 
     const handleResize = () => {
+      if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
       camera.aspect = container.clientWidth / container.clientHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(container.clientWidth, container.clientHeight);
+      composer.setSize(container.clientWidth, container.clientHeight);
     };
-    window.addEventListener('resize', handleResize);
+    
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    resizeObserver.observe(container);
 
     return () => {
       cancelAnimationFrame(animationFrameId);
-      window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
       if (controlsRef.current) controlsRef.current.dispose();
       renderer.dispose();
       if (container.contains(renderer.domElement)) {

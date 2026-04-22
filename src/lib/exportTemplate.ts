@@ -5,12 +5,14 @@ export const generateExportCode = (config: GlobalConfig, layers: Layer[]) => {
     return `<!-- BlobGen 3D Embed Snippet Start -->
 <div id="blobgen-container" style="width: 100%; max-width: 800px; aspect-ratio: 1/1; position: relative;"></div>
 
+<!-- ES Module Shims: Import maps polyfill for older browsers -->
+<script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+
 <script type="importmap">
   {
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-      "simplex-noise": "https://unpkg.com/simplex-noise@4.0.1/dist/esm/simplex-noise.js"
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
     }
   }
 </script>
@@ -18,7 +20,10 @@ export const generateExportCode = (config: GlobalConfig, layers: Layer[]) => {
 <script type="module">
   import * as THREE from 'three';
   import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-  import { createNoise3D } from 'simplex-noise';
+  import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+  import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+  import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+  import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 
   const config = ${JSON.stringify(config, null, 2).replace(/</g, '\\u003c')};
   const layers = ${JSON.stringify(layers, null, 2).replace(/</g, '\\u003c')};
@@ -45,6 +50,20 @@ export const generateExportCode = (config: GlobalConfig, layers: Layer[]) => {
   controls.dampingFactor = 0.05;
   controls.minDistance = 4;
   controls.maxDistance = 15;
+
+  const composer = new EffectComposer(renderer);
+  const renderPass = new RenderPass(scene, camera);
+  composer.addPass(renderPass);
+
+  const ssaoPass = new SSAOPass(scene, camera, container.clientWidth, container.clientHeight);
+  const isMobile = window.innerWidth <= 768;
+  ssaoPass.kernelRadius = isMobile ? 8 : 16;
+  ssaoPass.minDistance = 0.005;
+  ssaoPass.maxDistance = 0.1;
+  composer.addPass(ssaoPass);
+
+  const bloomPass = new UnrealBloomPass(new THREE.Vector2(container.clientWidth, container.clientHeight), 0.3, 0.5, 0.6);
+  composer.addPass(bloomPass);
 
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
   scene.add(ambientLight);
@@ -76,35 +95,73 @@ export const generateExportCode = (config: GlobalConfig, layers: Layer[]) => {
   scene.add(dirLight2);
 
   const baseRadius = renderConfig.baseRadius || 2;
-  const segments = currentQuality === 1 ? 32 : currentQuality === 2 ? 64 : currentQuality === 3 ? 128 : 256;
-  const geometry = new THREE.SphereGeometry(baseRadius, segments, segments);
-  const basePositions = geometry.attributes.position.clone();
+  const detail = currentQuality === 1 ? 16 : currentQuality === 2 ? 32 : currentQuality === 3 ? 64 : 128;
+  const geometry = new THREE.IcosahedronGeometry(baseRadius, detail);
 
   const shine = renderConfig.shininess ?? 100;
+  
+  // Connect bloom to shine strength directly
+  bloomPass.strength = (shine / 300) * 0.8;
   
   const customUniforms = {
     color1: { value: new THREE.Color() },
     color2: { value: new THREE.Color() },
-    useGradient: { value: false }
+    useGradient: { value: false },
+    uTime: { value: 0 },
+    uComplexity: { value: renderConfig.complexity || 1.2 },
+    uWobble: { value: renderConfig.wobbleIntensity || 0.5 },
+    uRadius: { value: baseRadius }
   };
 
   const material = new THREE.MeshStandardMaterial({
     color: renderConfig.color,
-    roughness: Math.max(0.05, 1.0 - (shine / 300)),
-    metalness: Math.min(1.0, shine / 600),
+    roughness: Math.max(0.25, 1.0 - (shine / 300)),
+    metalness: Math.min(0.5, shine / 600),
     flatShading: false
   });
   
-  material.onBeforeCompile = (shader) => {
+  const applyBlobShader = (shader) => {
     shader.uniforms.color1 = customUniforms.color1;
     shader.uniforms.color2 = customUniforms.color2;
     shader.uniforms.useGradient = customUniforms.useGradient;
+    shader.uniforms.uTime = customUniforms.uTime;
+    shader.uniforms.uComplexity = customUniforms.uComplexity;
+    shader.uniforms.uWobble = customUniforms.uWobble;
+    shader.uniforms.uRadius = customUniforms.uRadius;
     
-    shader.vertexShader = "\\n varying vec2 vUvBlob;\\n" + shader.vertexShader;
+    shader.vertexShader = "\\n varying vec2 vUvBlob;\\n" +
+      "uniform float uTime;\\n uniform float uComplexity;\\n uniform float uWobble;\\n uniform float uRadius;\\n" +
+      "float pseudoNoise3D(vec3 p) {\\n" +
+      "  float x = p.x; float y = p.y; float z = p.z;\\n" +
+      "  return (sin(x) + sin(y) + sin(z) + sin(x * 2.3 + y * 1.7 + z * 0.5) + sin(y * 2.3 + z * 1.7 + x * 0.5) + sin(z * 2.3 + x * 1.7 + y * 0.5)) / 6.0;\\n" +
+      "}\\n" +
+      "vec3 getDisplacedPosition(vec3 p) {\\n" +
+      "  float noise = pseudoNoise3D(p * uComplexity + vec3(uTime));\\n" +
+      "  return normalize(p) * (uRadius + (noise * uWobble));\\n" +
+      "}\\n" +
+      shader.vertexShader;
     
     shader.vertexShader = shader.vertexShader.replace(
       '#include <uv_vertex>',
       "#include <uv_vertex>\\n vUvBlob = uv;\\n"
+    );
+
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <beginnormal_vertex>',
+      "#include <beginnormal_vertex>\\n" +
+      "vec3 customTangent = normalize(cross(objectNormal, vec3(0.0, 1.0, 0.0)));\\n" +
+      "if (length(customTangent) < 0.1) { customTangent = normalize(cross(objectNormal, vec3(1.0, 0.0, 0.0))); }\\n" +
+      "vec3 customBitangent = normalize(cross(objectNormal, customTangent));\\n" +
+      "float offset = 0.01;\\n" +
+      "vec3 p0 = getDisplacedPosition(position);\\n" +
+      "vec3 p1 = getDisplacedPosition(position + customTangent * offset);\\n" +
+      "vec3 p2 = getDisplacedPosition(position + customBitangent * offset);\\n" +
+      "objectNormal = normalize(cross(p1 - p0, p2 - p0));\\n"
+    );
+
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      "vec3 transformed = getDisplacedPosition(position);\\n"
     );
     
     shader.fragmentShader = "\\n uniform vec3 color1;\\n uniform vec3 color2;\\n uniform bool useGradient;\\n varying vec2 vUvBlob;\\n" + shader.fragmentShader;
@@ -114,6 +171,8 @@ export const generateExportCode = (config: GlobalConfig, layers: Layer[]) => {
       "#include <color_fragment>\\n if (useGradient) {\\n diffuseColor.rgb = mix(color1, color2, vUvBlob.y * 1.5 - 0.25);\\n }\\n"
     );
   };
+  
+  material.onBeforeCompile = applyBlobShader;
 
   const blobMesh = new THREE.Mesh(geometry, material);
   blobMesh.castShadow = true;
@@ -127,10 +186,10 @@ export const generateExportCode = (config: GlobalConfig, layers: Layer[]) => {
     opacity: 0.15,
     visible: renderConfig.wireframe || false
   });
+  wireframeMaterial.onBeforeCompile = applyBlobShader;
+  
   const wireframeMesh = new THREE.Mesh(geometry, wireframeMaterial);
   scene.add(wireframeMesh);
-
-  const noise3D = createNoise3D();
 
   function animate(time = 0) {
     requestAnimationFrame(animate);
@@ -181,38 +240,29 @@ export const generateExportCode = (config: GlobalConfig, layers: Layer[]) => {
     
     const t = elapsedTime * 0.5 * speed;
 
-    const positionAttribute = geometry.attributes.position;
-    const vertex = new THREE.Vector3();
-
-    for (let i = 0; i < positionAttribute.count; i++) {
-      vertex.fromBufferAttribute(basePositions, i);
-      const noise = noise3D(
-        vertex.x * complexity + t,
-        vertex.y * complexity + t,
-        vertex.z * complexity + t
-      );
-      vertex.normalize().multiplyScalar(baseRadius + (noise * intensity));
-      positionAttribute.setXYZ(i, vertex.x, vertex.y, vertex.z);
-    }
-
-    positionAttribute.needsUpdate = true;
-    geometry.computeVertexNormals(); 
+    customUniforms.uTime.value = t;
+    customUniforms.uComplexity.value = complexity;
+    customUniforms.uWobble.value = intensity;
+    customUniforms.uRadius.value = baseRadius;
 
     blobMesh.rotation.y += 0.002 * speed;
     blobMesh.rotation.x += 0.001 * speed;
     wireframeMesh.rotation.copy(blobMesh.rotation);
 
     controls.update();
-    renderer.render(scene, camera);
+    composer.render();
   }
 
   animate();
 
-  window.addEventListener('resize', () => {
+  const resizeObserver = new ResizeObserver(() => {
+    if (!container) return;
     camera.aspect = container.clientWidth / container.clientHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(container.clientWidth, container.clientHeight);
+    composer.setSize(container.clientWidth, container.clientHeight);
   });
+  resizeObserver.observe(container);
 </script>
 <!-- BlobGen 3D Embed Snippet End -->`;
   }

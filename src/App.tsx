@@ -59,9 +59,9 @@ export default function App() {
     <div className="flex flex-col w-full h-[100dvh] overflow-hidden bg-base text-white font-sans selection:bg-accent/30 selection:text-white relative">
       
       {/* Main Dual-Pane / Toggle Layout */}
-      <div className="flex-1 overflow-hidden flex flex-col md:flex-row relative">
+      <div className="flex-1 overflow-hidden flex flex-col lg:flex-row relative">
         {/* Controls Pane */}
-        <div className={`w-full md:w-[400px] lg:w-[460px] xl:w-[500px] flex-shrink-0 h-full border-r border-border bg-pane relative z-20 flex-col transition-opacity ${activeTab === 'controls' ? 'flex' : 'hidden md:flex'}`}>
+        <div className={`w-full lg:w-[460px] xl:w-[500px] flex-shrink-0 h-full border-r border-border bg-pane relative z-20 flex-col transition-opacity ${activeTab === 'controls' ? 'flex' : 'hidden lg:flex'}`}>
           <Controls 
             config={globalConfig}
             setConfig={setGlobalConfig}
@@ -74,7 +74,7 @@ export default function App() {
         </div>
         
         {/* Preview Pane */}
-        <div className={`flex-1 h-full relative bg-preview-bg overflow-hidden ${activeTab === 'preview' ? 'block' : 'hidden md:block'}`}>
+        <div className={`flex-1 h-full relative bg-preview-bg overflow-hidden ${activeTab === 'preview' ? 'block' : 'hidden lg:block'}`}>
           <Preview 
             config={globalConfig}
             layers={layers}
@@ -83,7 +83,7 @@ export default function App() {
       </div>
 
       {/* Mobile Bottom Tabs (Appears exclusively on small screens) */}
-      <div className="md:hidden flex-none flex h-[calc(60px+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] bg-pane border-t border-border z-30 w-full relative">
+      <div className="lg:hidden flex-none flex h-[calc(60px+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] bg-pane border-t border-border z-30 w-full relative">
         <button 
           onClick={() => setActiveTab('controls')}
           className={`flex-1 flex items-center justify-center gap-2 text-[11px] uppercase tracking-wider font-medium transition-colors ${activeTab === 'controls' ? 'text-accent bg-[#1a1a1a] shadow-[inset_0_2px_0_var(--color-accent)]' : 'text-[#666]'}`}

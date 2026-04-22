@@ -323,44 +323,44 @@ export function Controls({
             </h3>
 
             <div className="space-y-6">
-              <div className="flex items-center gap-4">
-                <span className="text-[11px] text-[#AAA] uppercase tracking-wider w-28 flex-shrink-0">Animation Speed</span>
+              <div>
+                <div className="flex justify-between mb-2">
+                  <label className="text-[11px] font-semibold text-[#AAA] uppercase tracking-wider" title="Speed of animation">Animation Speed</label>
+                  <span className="text-[11px] text-[#00FF94] font-mono">{(config.config3D?.animationSpeed ?? 1.0).toFixed(1)}x</span>
+                </div>
                 <input type="range" min="0.0" max="3.0" step="0.1" value={config.config3D?.animationSpeed ?? 1.0}
                   onChange={e => setConfig({ ...config, config3D: { ...config.config3D!, animationSpeed: parseFloat(e.target.value) }})}
-                  className="flex-1 min-w-0" />
-                <div className="h-8 border border-[#333] rounded-md px-3 flex items-center bg-[#111] text-[11px] font-mono text-white min-w-[50px] justify-center flex-shrink-0">
-                  {(config.config3D?.animationSpeed ?? 1.0).toFixed(2)}
-                </div>
+                  className="w-full" />
               </div>
 
-              <div className="flex items-center gap-4">
-                <span className="text-[11px] text-[#AAA] uppercase tracking-wider w-28 flex-shrink-0">Wobble Intensity</span>
+              <div>
+                <div className="flex justify-between mb-2">
+                  <label className="text-[11px] font-semibold text-[#AAA] uppercase tracking-wider" title="How far the vertices push out">Wobble Intensity</label>
+                  <span className="text-[11px] text-[#00FF94] font-mono">{(config.config3D?.wobbleIntensity ?? 0.5).toFixed(2)}</span>
+                </div>
                 <input type="range" min="0.0" max="1.5" step="0.05" value={config.config3D?.wobbleIntensity ?? 0.5}
                   onChange={e => setConfig({ ...config, config3D: { ...config.config3D!, wobbleIntensity: parseFloat(e.target.value) }})}
-                  className="flex-1 min-w-0" />
-                <div className="h-8 border border-[#333] rounded-md px-3 flex items-center bg-[#111] text-[11px] font-mono text-white min-w-[50px] justify-center flex-shrink-0">
-                  {(config.config3D?.wobbleIntensity ?? 0.5).toFixed(2)}
-                </div>
+                  className="w-full" />
               </div>
 
-              <div className="flex items-center gap-4">
-                <span className="text-[11px] text-[#AAA] uppercase tracking-wider w-28 flex-shrink-0">Complexity</span>
-                <input type="range" min="0.25" max="4.0" step="0.05" value={config.config3D?.complexity ?? 1.2}
+              <div>
+                <div className="flex justify-between mb-2">
+                  <label className="text-[11px] font-semibold text-[#AAA] uppercase tracking-wider" title="How bumpy the surface is">Detail / Complexity</label>
+                  <span className="text-[11px] text-[#00FF94] font-mono">{(config.config3D?.complexity ?? 1.2).toFixed(1)}</span>
+                </div>
+                <input type="range" min="0.1" max="4.0" step="0.1" value={config.config3D?.complexity ?? 1.2}
                   onChange={e => setConfig({ ...config, config3D: { ...config.config3D!, complexity: parseFloat(e.target.value) }})}
-                  className="flex-1 min-w-0" />
-                <div className="h-8 border border-[#333] rounded-md px-3 flex items-center bg-[#111] text-[11px] font-mono text-white min-w-[50px] justify-center flex-shrink-0">
-                  {(config.config3D?.complexity ?? 1.2).toFixed(2)}
-                </div>
+                  className="w-full" />
               </div>
 
-              <div className="flex items-center gap-4">
-                <span className="text-[11px] text-[#AAA] uppercase tracking-wider w-28 flex-shrink-0">Shine Strength</span>
+              <div>
+                <div className="flex justify-between mb-2">
+                  <label className="text-[11px] font-semibold text-[#AAA] uppercase tracking-wider" title="Amount of Bloom glow">Shine Strength</label>
+                  <span className="text-[11px] text-[#00FF94] font-mono">{(config.config3D?.shininess ?? 100).toFixed(0)}</span>
+                </div>
                 <input type="range" min="0" max="300" step="5" value={config.config3D?.shininess ?? 100}
                   onChange={e => setConfig({ ...config, config3D: { ...config.config3D!, shininess: parseFloat(e.target.value) }})}
-                  className="flex-1 min-w-0" />
-                <div className="h-8 border border-[#333] rounded-md px-3 flex items-center bg-[#111] text-[11px] font-mono text-white min-w-[50px] justify-center flex-shrink-0">
-                  {(config.config3D?.shininess ?? 100).toFixed(0)}
-                </div>
+                  className="w-full" />
               </div>
 
               <div className="flex items-center gap-4">
@@ -373,15 +373,23 @@ export function Controls({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-2">
-                <span className="text-[11px] text-[#AAA] uppercase tracking-wider">Show Wireframe</span>
-                <button 
-                  type="button"
-                  onClick={() => setConfig({ ...config, config3D: { ...config.config3D!, wireframe: !config.config3D?.wireframe }})}
-                  className={`w-10 h-5 rounded-full relative transition-colors cursor-pointer outline-none border-none ${config.config3D?.wireframe ? 'bg-[#555]' : 'bg-[#222222]'}`}
-                >
-                   <div className={`absolute top-[2px] w-4 h-4 rounded-full transition-all ${config.config3D?.wireframe ? 'right-[2px] bg-[#fff]' : 'left-[2px] bg-[#666]'}`} />
-                </button>
+              <div className="pt-2">
+                <label className="flex items-center cursor-pointer group">
+                  <div className="relative">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only" 
+                      checked={config.config3D?.wireframe ?? false}
+                      onChange={e => setConfig({ ...config, config3D: { ...config.config3D!, wireframe: e.target.checked }})}
+                    />
+                    <div className={`block w-10 h-6 rounded-full transition-colors duration-300 ${config.config3D?.wireframe ? 'bg-[#00FF94]' : 'bg-[#222222]'}`}></div>
+                    <div className={`absolute left-1 top-1 w-4 h-4 rounded-full transition-transform duration-300 shadow-sm ${config.config3D?.wireframe ? 'translate-x-4 bg-white' : 'bg-[#666]'}`}></div>
+                  </div>
+                  <span className="ml-3 text-[11px] font-medium text-[#AAA] group-hover:text-white transition-colors uppercase tracking-wider">Show Wireframe Overlay</span>
+                </label>
+                <p className="text-[10px] text-[#666] mt-2 leading-relaxed">
+                  Toggle to see the 3D polygon mesh and how the math deforms the vertices in real-time.
+                </p>
               </div>
 
               <div className="pt-6 border-t border-[#333]">

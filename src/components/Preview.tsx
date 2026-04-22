@@ -98,7 +98,7 @@ export function Preview({ config, layers }: PreviewProps) {
     <div className="w-full h-full relative overflow-hidden flex items-center justify-center bg-preview-bg">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,#1a1a1a_1px,transparent_0)] bg-[length:40px_40px] opacity-50 pointer-events-none" />
       
-      <div className="absolute top-6 right-6 hidden md:flex gap-6 z-10 pointer-events-none">
+      <div className="absolute top-6 right-6 hidden lg:flex gap-6 z-10 pointer-events-none">
         <div className="text-right">
           <div className="text-[10px] opacity-40 uppercase tracking-widest font-mono">Render_Mode</div>
           <div className="text-[12px] font-bold uppercase tracking-wider">WebGL_Hybrid</div>
@@ -109,8 +109,7 @@ export function Preview({ config, layers }: PreviewProps) {
         </div>
       </div>
 
-      <div className="relative w-full h-full flex items-center justify-center z-0 p-4 sm:p-8 md:p-12">
-        <div className="absolute top-1/2 left-1/2 w-1 h-1 bg-accent rounded-full -translate-x-1/2 -translate-y-1/2 z-0" />
+      <div className="relative w-full h-full flex items-center justify-center z-0 p-4 sm:p-8 lg:p-12">
         
         {config.dimension === '3d' ? (
           <Blob3D config={config} layers={layers} />
